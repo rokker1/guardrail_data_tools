@@ -52,7 +52,7 @@ def shepards_distortion(filename, x0, y0, x1, x2, power):
     return bbox_x_min, bbox_y_min, bbox_x_max, bbox_y_max
 
 
-def shepards_distortion_multipoint(filename, power, distortion_points, save=True, draw=True):
+def shepards_distortion_multipoint(filename, power, distortion_points, save_bbox=True, draw=True):
     power = str(power)
     with Image(filename=filename) as img:
         width = img.width
@@ -72,9 +72,8 @@ def shepards_distortion_multipoint(filename, power, distortion_points, save=True
         )
         img.distort('shepards', args)
         saved_image_name = f'{filename}_processed{str(power)}.jpg'
-        if save:
-            img.format = 'jpeg'
-            img.save(filename=saved_image_name)
+        img.format = 'jpeg'
+        img.save(filename=saved_image_name)
         image = cv2.imread(saved_image_name, cv2.IMREAD_COLOR)
 
         bboxes = []
@@ -87,9 +86,9 @@ def shepards_distortion_multipoint(filename, power, distortion_points, save=True
             distortion_distance_y = abs(f.y - f.j)
             distortion_power = float(power)
             bbox_x_min = int(f.i - distortion_distance * float(power))
-            bbox_y_min = int(bbox_center_y - distortion_distance_y * bbox_scale_factor * distortion_power * 1.2)
+            bbox_y_min = int(bbox_center_y - distortion_distance_y * bbox_scale_factor * distortion_power * 1.3)
             bbox_x_max = int(f.i + distortion_distance * float(power))
-            bbox_y_max = int(f.y + distortion_distance_y * bbox_scale_factor * distortion_power * 2)
+            bbox_y_max = int(f.y + distortion_distance_y * bbox_scale_factor * distortion_power * 2.5)
             bboxes.append(BoundingBox(bbox_x_min, bbox_y_min, bbox_x_max, bbox_y_max))
             if draw:
                 cv2.line(image, (int(f.x), int(f.y)), (int(f.i), int(f.j)), (0, 180, 230), 1)
@@ -101,7 +100,7 @@ def shepards_distortion_multipoint(filename, power, distortion_points, save=True
         bbox_x_max = max(bboxes, key=lambda bbox: max(bbox.x_min, bbox.x_max)).x_max
         bbox_y_max = max(bboxes, key=lambda bbox: max(bbox.y_min, bbox.y_max)).y_max
         cv2.rectangle(image, (bbox_x_min, bbox_y_min), (bbox_x_max, bbox_y_max), (255, 0, 60), 1)
-    if save:
+    if save_bbox:
         cv2.imwrite(saved_image_name, image)
     # return bbox_x_min, bbox_y_min, bbox_x_max, bbox_y_max
     return BoundingBox(bbox_x_min, bbox_y_min, bbox_x_max, bbox_y_max), saved_image_name

@@ -1,5 +1,6 @@
 import os
 import random
+import shutil
 
 import numpy as np
 import cv2
@@ -18,7 +19,8 @@ from sklearn.linear_model import LinearRegression
 from line_approximator import Line
 from shepards_distotrion import get_shepards_distortion, PointTransition, BoundingBox
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-from pascal_labeling import create_pascal_label
+from pascal_voc_writer import Writer
+
 """ Global parameters """
 height_net_input = 512
 width_net_input = 512
@@ -120,12 +122,32 @@ create_dir("test_images/mask")
 """ Папка с проектом"""
 project_path = "/mnt/sda2/source/Human-Image-Segmentation-with-DeepLabV3Plus-in-TensorFlow/"
 
+"""Папка с результирующим датасетом"""
+result_dataset_path = "/mnt/sda2/its/dataset/guardrail_dmg"
+jpeg_images_path = os.path.join(result_dataset_path, "JPEGImages")
+create_dir(jpeg_images_path)
+files = glob(os.path.join(jpeg_images_path, "*"))
+for f in files:
+    os.remove(f)
+annotations_path = os.path.join(result_dataset_path, "Annotations")
+create_dir(annotations_path)
+files = glob(os.path.join(annotations_path, "*"))
+for f in files:
+    os.remove(f)
+
+
 """ Loading model """
 with CustomObjectScope({'iou': iou, 'dice_coef': dice_coef, 'dice_loss': dice_loss}):
     model = tf.keras.models.load_model(project_path + "files/model.h5")
 
+working_images_path = "test_images/image"
+files_to_remove = ["*processed*", "*bbox*", "*mask*"]
+for remove_mask in files_to_remove:
+    files = glob(os.path.join(working_images_path, remove_mask))
+    for f in files:
+        os.remove(f)
 """ Load the dataset """
-data_x = glob("test_images/image/*")
+data_x = glob(os.path.join(working_images_path, "*"))
 # data_x = glob("/mnt/sda2/shit_dataset/dataset/JPEGImages/*")
 
 
@@ -136,9 +158,9 @@ def main():
         name = path.split("/")[-1].split(".")[0]
         filename = path.split("/")[-1]
         image = cv2.imread(path, cv2.IMREAD_COLOR)
-        h, w, _ = image.shape
-        h_scale = h / height_net_input
-        w_scale = w / width_net_input
+        original_height, original_width, _ = image.shape
+        h_scale = original_height / height_net_input
+        w_scale = original_width / width_net_input
         resized_image = cv2.resize(image, (width_net_input, height_net_input))
         resized_image = resized_image / 255.0
         resized_image = resized_image.astype(np.float32)
@@ -147,11 +169,9 @@ def main():
         longest_line, prediction = get_longest_line(image, model)
         if longest_line is None or prediction is None:
             continue
-        mask_original_size = cv2.resize(prediction * 255, (w, h))
-        mask_path = path + "mask.jpg"
+        mask_original_size = cv2.resize(prediction * 255, (original_width, original_height))
+        mask_path = os.path.join(working_images_path, name + "_mask.png")
         cv2.imwrite(mask_path, mask_original_size)
-
-
 
 
         im_ = cv2.line(resized_image[0], (longest_line.x_min, longest_line.y_min), (longest_line.x_max, longest_line.y_max), (0.9, 0.1, 0.1), 2)
@@ -162,39 +182,55 @@ def main():
         distortionn_points = get_shepards_distortion(longest_line, random.choice(range(1, 4)))
         distortionn_points_original_scale = convert_to_original_coords(distortionn_points, w_scale, h_scale)
 
-        bbox, saved_image_name = shepards_distotrion.shepards_distortion_multipoint(path, 0.7, distortionn_points_original_scale, save=True, draw=True)
-        bbox, saved_mask_name = shepards_distotrion.shepards_distortion_multipoint(mask_path, 0.7, distortionn_points_original_scale, save=True, draw=False)
+        # искаженеие изображения и маски, сохранение на диск
+        bbox, saved_image_name = shepards_distotrion.shepards_distortion_multipoint(path, 0.7, distortionn_points_original_scale, save_bbox=False, draw=False)
+        bbox, saved_mask_name = shepards_distotrion.shepards_distortion_multipoint(mask_path, 0.7, distortionn_points_original_scale, save_bbox=True, draw=False)
 
+        # чтение искаженной маски
         bounded_dist_mask = cv2.imread(saved_mask_name, cv2.IMREAD_GRAYSCALE)
         # cv2.imshow("debug", bounded_dist_mask)
         # cv2.waitKey(0)
 
         bounded_dist_mask = bounded_dist_mask[bbox.y_min:bbox.y_max, bbox.x_min:bbox.x_max]
-        # cv2.imshow("debug", bounded_dist_mask)
-        # cv2.waitKey(0)
+        cv2.imshow("debug", bounded_dist_mask)
+        cv2.waitKey(0)
         bounded_dist_mask = cv2.GaussianBlur(bounded_dist_mask, (7, 7), 1)
         bounded_dist_mask = cv2.Canny(bounded_dist_mask.astype(np.uint8), 50, 350)
-        # cv2.imshow("debug", bounded_dist_mask)
-        # cv2.waitKey(0)
-        kernel = np.ones((5, 5), np.uint8)
+        cv2.imshow("debug", bounded_dist_mask)
+        cv2.waitKey(0)
+        kernel = np.ones((7, 7), np.uint8)
         # variant
-        bounded_dist_mask = cv2.dilate(bounded_dist_mask, kernel, iterations=2)
-        # cv2.imshow("debug", bounded_dist_mask)
-        # cv2.waitKey(0)
+        bounded_dist_mask = cv2.dilate(bounded_dist_mask, kernel, iterations=1)
+        cv2.imshow("debug", bounded_dist_mask)
+        cv2.waitKey(0)
         contours_, hierarchy_ = cv2.findContours(bounded_dist_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        if len(contours_) == 0:
+            continue
+        for id_, c_ in enumerate(contours_):
+            print("contour", id_, "area =", cv2.contourArea(c_))
         max_contour = max(contours_, key=lambda c: cv2.contourArea(c))
         x, y, w, h = cv2.boundingRect(max_contour)
         cv2.rectangle(bounded_dist_mask, (x, y), (x + w, y + h), (255), 2)
-        # cv2.imshow("debug", bounded_dist_mask)
-        # cv2.waitKey(0)
+        cv2.imshow("debug", bounded_dist_mask)
+        cv2.waitKey(0)
         image_2 = cv2.imread(saved_image_name, cv2.IMREAD_COLOR)
         cv2.rectangle(image_2, (bbox.x_min + x, bbox.y_min + y), (bbox.x_min + x + w, bbox.y_min + y + h), (255, 160, ), 4)
-        cv2.imwrite(saved_image_name, image_2)
+        cv2.imwrite(f"test_images/image/{name}_bbox.jpg", image_2)
+
+
+        # Labeling
+        shutil.copy(saved_image_name, os.path.join(jpeg_images_path, name + ".jpg"))
+        writer = Writer(os.path.join(jpeg_images_path, name + ".jpg"), original_width, original_height)
+        # add objects (class, xmin, ymin, xmax, ymax)
+        writer.addObject('guardrail-damage', bbox.x_min + x, bbox.y_min + y, bbox.x_min + x + w, bbox.y_min + y + h)
+        writer.save(os.path.join(annotations_path, f'{name}.xml'))
+
+
 
         # debug
-        for dist_point in distortionn_points:
-            im_ = cv2.line(im_, (dist_point.x, dist_point.y),
-                           (dist_point.i, dist_point.j), (0.1, 0.7, 0.9), 1)
+        # for dist_point in distortionn_points:
+        #     im_ = cv2.line(im_, (dist_point.x, dist_point.y),
+        #                    (dist_point.i, dist_point.j), (0.1, 0.7, 0.9), 1)
         # cv2.imshow("debug", im_)
         # cv2.waitKey(0)
 
