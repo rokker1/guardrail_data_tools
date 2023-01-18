@@ -121,20 +121,23 @@ create_dir("test_images/mask")
 
 """ Папка с проектом"""
 project_path = "/mnt/sda2/source/Human-Image-Segmentation-with-DeepLabV3Plus-in-TensorFlow/"
-
-"""Папка с результирующим датасетом"""
 result_dataset_path = "/mnt/sda2/its/dataset/guardrail_dmg"
 jpeg_images_path = os.path.join(result_dataset_path, "JPEGImages")
+annotations_path = os.path.join(result_dataset_path, "Annotations")
+"""Папка с результирующим датасетом"""
+"""
+
+
 create_dir(jpeg_images_path)
 files = glob(os.path.join(jpeg_images_path, "*"))
 for f in files:
     os.remove(f)
-annotations_path = os.path.join(result_dataset_path, "Annotations")
+
 create_dir(annotations_path)
 files = glob(os.path.join(annotations_path, "*"))
 for f in files:
     os.remove(f)
-
+"""
 
 """ Loading model """
 with CustomObjectScope({'iou': iou, 'dice_coef': dice_coef, 'dice_loss': dice_loss}):
@@ -192,17 +195,17 @@ def main():
         # cv2.waitKey(0)
 
         bounded_dist_mask = bounded_dist_mask[bbox.y_min:bbox.y_max, bbox.x_min:bbox.x_max]
-        cv2.imshow("debug", bounded_dist_mask)
-        cv2.waitKey(0)
+        # cv2.imshow("debug", bounded_dist_mask)
+        # cv2.waitKey(0)
         bounded_dist_mask = cv2.GaussianBlur(bounded_dist_mask, (7, 7), 1)
         bounded_dist_mask = cv2.Canny(bounded_dist_mask.astype(np.uint8), 50, 350)
-        cv2.imshow("debug", bounded_dist_mask)
-        cv2.waitKey(0)
+        # cv2.imshow("debug", bounded_dist_mask)
+        # cv2.waitKey(0)
         kernel = np.ones((7, 7), np.uint8)
         # variant
         bounded_dist_mask = cv2.dilate(bounded_dist_mask, kernel, iterations=1)
-        cv2.imshow("debug", bounded_dist_mask)
-        cv2.waitKey(0)
+        # cv2.imshow("debug", bounded_dist_mask)
+        # cv2.waitKey(0)
         contours_, hierarchy_ = cv2.findContours(bounded_dist_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         if len(contours_) == 0:
             continue
@@ -211,9 +214,10 @@ def main():
         max_contour = max(contours_, key=lambda c: cv2.contourArea(c))
         x, y, w, h = cv2.boundingRect(max_contour)
         cv2.rectangle(bounded_dist_mask, (x, y), (x + w, y + h), (255), 2)
-        cv2.imshow("debug", bounded_dist_mask)
-        cv2.waitKey(0)
+        # cv2.imshow("debug", bounded_dist_mask)
+        # cv2.waitKey(0)
         image_2 = cv2.imread(saved_image_name, cv2.IMREAD_COLOR)
+        #result
         cv2.rectangle(image_2, (bbox.x_min + x, bbox.y_min + y), (bbox.x_min + x + w, bbox.y_min + y + h), (255, 160, ), 4)
         cv2.imwrite(f"test_images/image/{name}_bbox.jpg", image_2)
 
@@ -235,9 +239,9 @@ def main():
         # cv2.waitKey(0)
 
 
+if __name__ == "__main__":
+    main()
 
-
-main()
 
     # delta_x = 4 * math.log(longest_line.distance(), 1.7) / math.log(abs(-1 / longest_line.coef), math.e)
     # print("Distance logarithm:", delta_x)
