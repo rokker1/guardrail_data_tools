@@ -30,7 +30,9 @@ class Line:
     def calculate_normal(self, x=0):
         """метод вернет координаты точки на нормали, проходящей через центр отрезка"""
         devisor_coefficient = 16
-        k2 = -1 / self.coef[0] / devisor_coefficient
+        k2 = 0
+        if self.coef[0] != 0:
+            k2 = -1 / self.coef[0] / devisor_coefficient
         b = self.mid_point[1] - k2 * self.mid_point[0]
         return k2 * x + b
 
@@ -44,7 +46,9 @@ class Line:
         """рассчитывает координаты х, у точки на нормали с координатой х, и
             проходящей через точку x0, y0, приналежащую прямой"""
         devisor_coefficient = 16
-        k2 = -1 / self.coef[0] / devisor_coefficient
+        k2 = 0
+        if abs(self.coef[0]) > 1e-6:
+            k2 = -1 / self.coef[0] / devisor_coefficient
         b = y0 - k2 * x0
         y = k2 * x + b
         return x, y

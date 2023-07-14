@@ -85,10 +85,10 @@ def shepards_distortion_multipoint(filename, power, distortion_points, save_bbox
             distortion_distance_x = abs(f.x - f.i)
             distortion_distance_y = abs(f.y - f.j)
             distortion_power = float(power)
-            bbox_x_min = int(f.i - distortion_distance * float(power))
-            bbox_y_min = int(bbox_center_y - distortion_distance_y * bbox_scale_factor * distortion_power * 1.3)
-            bbox_x_max = int(f.i + distortion_distance * float(power))
-            bbox_y_max = int(f.y + distortion_distance_y * bbox_scale_factor * distortion_power * 2.5)
+            bbox_x_min = int(f.i - distortion_distance * float(power)**2)
+            bbox_y_min = int(bbox_center_y - distortion_distance_y * bbox_scale_factor * distortion_power * 1.3 - 2)
+            bbox_x_max = int(f.i + distortion_distance * float(power)**2)
+            bbox_y_max = int(f.y + distortion_distance_y * bbox_scale_factor * distortion_power * 2.5 + 2)
             bboxes.append(BoundingBox(bbox_x_min, bbox_y_min, bbox_x_max, bbox_y_max))
             if draw:
                 cv2.line(image, (int(f.x), int(f.y)), (int(f.i), int(f.j)), (0, 180, 230), 1)
@@ -110,14 +110,15 @@ def get_shepards_distortion(longest_line, deform_count: int):
     """точки в относительных координатах где применяем искажение"""
     positions = []
     line_sign = math.copysign(1, longest_line.coef)
-    step = 0.06
+    step = 0.04
     for i in range(deform_count):
         """ 0.50, 0.55, 0.60, 0.65"""
         positions.append(0.5 - (4 * line_sign * step) - (line_sign * step * i))
     transition_points = []
     """величина искажения"""
-    delta_x = 7 * math.log(longest_line.distance(), 1.7)
+    delta_x = random.choice(range(4, 8)) * math.log(longest_line.distance(), 1.7)
     # delta_x = 4 * math.log(longest_line.distance(), 1.7) / math.log(abs(-1 / longest_line.coef), math.e)
+
     for pos in positions:
         transition_points.append(longest_line.calculate_tp_at_pos(pos, delta_x * line_sign))
 

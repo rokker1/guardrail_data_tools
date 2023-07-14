@@ -72,7 +72,7 @@ def convert_to_original_coords(distortionn_points, w_scale, h_scale):
 def get_longest_line(image, model_):
     """принимает картинку по пути path, модель и возвращает объект
      самой длинной найденной на фото аппроксимирующей линии барьера"""
-    area_thres = 5
+    area_thres = 20
     resized_image = cv2.resize(image, (width_net_input, height_net_input))
     resized_image = resized_image / 255.0
     resized_image = resized_image.astype(np.float32)
@@ -97,7 +97,7 @@ def get_longest_line(image, model_):
             x_dots = approx_[:, 0, 0]
             y_dots = approx_[:, 0, 1]
             reg = LinearRegression().fit(x_dots.reshape(-1, 1), y_dots)
-            print("debug. lineapprox score is:", reg.score(x_dots.reshape(-1, 1), y_dots))
+            # print("debug. lineapprox score is:", reg.score(x_dots.reshape(-1, 1), y_dots))
             x_min = int(min(x_dots))
             x_max = int(max(x_dots))
             y_min = round(reg.predict((np.array(x_min)).reshape(-1, 1))[0])
@@ -120,10 +120,15 @@ tf.random.set_seed(42)
 create_dir("test_images/mask")
 
 """ Папка с проектом"""
-project_path = "/mnt/sda2/source/Human-Image-Segmentation-with-DeepLabV3Plus-in-TensorFlow/"
-result_dataset_path = "/mnt/sda2/its/dataset/guardrail_dmg"
+project_path = "/mnt/sdb1/BACKUP/source/Human-Image-Segmentation-with-DeepLabV3Plus-in-TensorFlow/"
+result_dataset_path = "/mnt/sdb1/BACKUP/its/dataset/guardrail_dmg"
 jpeg_images_path = os.path.join(result_dataset_path, "JPEGImages")
 annotations_path = os.path.join(result_dataset_path, "Annotations")
+
+# Хранить в одной папке
+jpeg_images_path = os.path.join(result_dataset_path, "task")
+annotations_path = jpeg_images_path
+
 """Папка с результирующим датасетом"""
 """
 
@@ -144,6 +149,8 @@ with CustomObjectScope({'iou': iou, 'dice_coef': dice_coef, 'dice_loss': dice_lo
     model = tf.keras.models.load_model(project_path + "files/model.h5")
 
 working_images_path = "test_images/image"
+# another way
+# working_images_path = "/mnt/sdb1/BACKUP/its/dataset/guardrail_dmg/source_images"
 files_to_remove = ["*processed*", "*bbox*", "*mask*"]
 for remove_mask in files_to_remove:
     files = glob(os.path.join(working_images_path, remove_mask))
@@ -157,9 +164,14 @@ data_x = glob(os.path.join(working_images_path, "*"))
 def main():
     for path in tqdm(data_x, total=len(data_x)):
         print("DEBUG:", path)
+
         """ Extracting name """
         name = path.split("/")[-1].split(".")[0]
         filename = path.split("/")[-1]
+        if os.path.isfile(os.path.join(jpeg_images_path, filename)):
+            print('skip')
+            continue
+
         image = cv2.imread(path, cv2.IMREAD_COLOR)
         original_height, original_width, _ = image.shape
         h_scale = original_height / height_net_input
@@ -209,8 +221,8 @@ def main():
         contours_, hierarchy_ = cv2.findContours(bounded_dist_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         if len(contours_) == 0:
             continue
-        for id_, c_ in enumerate(contours_):
-            print("contour", id_, "area =", cv2.contourArea(c_))
+        # for id_, c_ in enumerate(contours_):
+            # print("contour", id_, "area =", cv2.contourArea(c_))
         max_contour = max(contours_, key=lambda c: cv2.contourArea(c))
         x, y, w, h = cv2.boundingRect(max_contour)
         cv2.rectangle(bounded_dist_mask, (x, y), (x + w, y + h), (255), 2)
@@ -223,7 +235,7 @@ def main():
 
 
         # Labeling
-        shutil.copy(saved_image_name, os.path.join(jpeg_images_path, name + ".jpg"))
+        shutil.move(saved_image_name, os.path.join(jpeg_images_path, name + ".jpg"))
         writer = Writer(os.path.join(jpeg_images_path, name + ".jpg"), original_width, original_height)
         # add objects (class, xmin, ymin, xmax, ymax)
         writer.addObject('guardrail-damage', bbox.x_min + x, bbox.y_min + y, bbox.x_min + x + w, bbox.y_min + y + h)
@@ -237,6 +249,12 @@ def main():
         #                    (dist_point.i, dist_point.j), (0.1, 0.7, 0.9), 1)
         # cv2.imshow("debug", im_)
         # cv2.waitKey(0)
+
+        # remove mask, distorted_mask
+        # os.remove(saved_mask_name)
+        # os.remove(mask_path)
+
+
 
 
 if __name__ == "__main__":
