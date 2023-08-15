@@ -1,7 +1,5 @@
 from collections import namedtuple
-from wand.color import Color
 from wand.image import Image
-import line_approximator
 import cv2
 import random
 import math
